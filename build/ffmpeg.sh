@@ -31,6 +31,7 @@ CONF_FLAGS=(
   --enable-swresample
 
   --enable-filter=atrim,asetpts
+  --enable-demuxer=concat
 
   --nm=emnm
   --ar=emar
