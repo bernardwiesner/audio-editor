@@ -54,4 +54,35 @@ describe('AudioProcessor', () => {
       '-i', 'input.m4a', '-ss', '2', '-t', '5', '-c', 'copy', '-map', 'a', 'output.m4a'
     ])
   })
+
+  it('reads audio stream settings for quick-insert matching', async () => {
+    ffmpeg.readFile.mockResolvedValue(new TextEncoder().encode(JSON.stringify({
+      streams: [{ codec_type: 'audio', codec_name: 'mp3', sample_rate: '44100', channels: 2, bit_rate: '128000' }]
+    })))
+    const processor = new AudioProcessor({ coreURL: 'core.js', wasmURL: 'core.wasm' })
+    const file = new File(['audio'], 'episode.mp3', { type: 'audio/mpeg' })
+
+    await expect(processor.getAudioStreamInfo(file)).resolves.toEqual({
+      codec: 'mp3',
+      sampleRate: '44100',
+      channels: 2,
+      bitRate: '128000'
+    })
+  })
+
+  it('creates an insert plan before transcoding mismatched audio', async () => {
+    ffmpeg.readFile.mockResolvedValue(new TextEncoder().encode(JSON.stringify({
+      streams: [{ codec_type: 'audio', codec_name: 'aac', sample_rate: '44100', channels: 2, bit_rate: '128000' }]
+    })))
+    const processor = new AudioProcessor({ coreURL: 'core.js', wasmURL: 'core.wasm' })
+    const original = new File(['audio'], 'episode.m4a', { type: 'audio/mp4' })
+    const insert = new File(['audio'], 'intro.mp3', { type: 'audio/mpeg' })
+
+    await expect(processor.getInsertPlan(insert, original)).resolves.toMatchObject({
+      requiresTranscode: true,
+      originalStream: { codec: 'aac' },
+      insertStream: { codec: 'aac' }
+    })
+    expect(ffmpeg.exec).not.toHaveBeenCalled()
+  })
 })
